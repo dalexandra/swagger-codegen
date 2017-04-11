@@ -9,7 +9,7 @@ import java.util.Objects;
 public class CodegenProperty implements Cloneable {
     public String baseName, complexType, getter, setter, description, datatype,
           datatypeWithEnum, dataFormat, name, min, max, defaultValue, defaultValueWithParam,
-          baseType, containerType, title;
+          baseType, containerType, title, datatypeparent, nameParent, nameChild, nameParentChild;
 
     /** The 'description' string without escape charcters needed by some programming languages/targets */
     public String unescapedDescription;
@@ -54,7 +54,8 @@ public class CodegenProperty implements Cloneable {
     public String enumName;
     public Integer maxItems;
     public Integer minItems;
-
+    public boolean isChild;
+    public boolean isParent;
 
     @Override
     public String toString() {

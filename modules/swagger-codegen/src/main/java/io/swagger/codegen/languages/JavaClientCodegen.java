@@ -324,7 +324,7 @@ public class JavaClientCodegen extends AbstractJavaCodegen
                 model.imports.add("JsonProperty");
             }
             if(additionalProperties.containsKey("gson")) {
-                model.imports.add("SerializedName");
+//                model.imports.add("SerializedName");
             }
         } else { // enum class
             //Needed imports for Jackson's JsonCreator
@@ -346,9 +346,9 @@ public class JavaClientCodegen extends AbstractJavaCodegen
                 CodegenModel cm = (CodegenModel) mo.get("model");
                 // for enum model
                 if (Boolean.TRUE.equals(cm.isEnum) && cm.allowableValues != null) {
-                    cm.imports.add(importMapping.get("SerializedName"));
+//                    cm.imports.add(importMapping.get("SerializedName"));
                     Map<String, String> item = new HashMap<String, String>();
-                    item.put("import", importMapping.get("SerializedName"));
+//                    item.put("import", importMapping.get("SerializedName"));
                     imports.add(item);
                 }
             }
