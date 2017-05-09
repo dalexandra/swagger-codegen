@@ -111,7 +111,6 @@ public class DefaultCodegen {
     protected String gitUserId, gitRepoId, releaseNote;
     protected String httpUserAgent;
     protected Boolean hideGenerationTimestamp = true;
-    protected boolean alreadyExecuted = true;
     protected List<String> propertyBooleanExceptions = Arrays.asList("showadonCloseapp", "showadonPause", "showadonPlay", "showadonSelectstation",
             "showadonStreamend", "showadonPreviewlist", "showadonStreamlist", "showadonNewslist", "showadonAppstart", "enabled");
     // How to encode special characters like $
@@ -167,6 +166,8 @@ public class DefaultCodegen {
     public Map<String, Object> postProcessAllModels(Map<String, Object> objs) {
         if (supportsInheritance) {
             // Index all CodegenModels by model name.
+            Map<String, List<CodegenModel>> imports = new HashMap<String, List<CodegenModel>>();
+            List<Map<String, String>> finalImports = new ArrayList<Map<String, String>>();
             Map<String, CodegenModel> allModels = new HashMap<String, CodegenModel>();
             for (Entry<String, Object> entry : objs.entrySet()) {
                 String modelName = toModelName(entry.getKey());
@@ -196,17 +197,38 @@ public class DefaultCodegen {
             for (String name : allModels.keySet()) {
                 CodegenModel cm = allModels.get(name);
                 CodegenModel parent = allModels.get(cm.parent);
-                // if a discriminator exists on the parent, don't add this child to the inheritance heirarchy
+                // if a discriminator exists on the parent, don't add this child to the inheritance hierarchy
                 // TODO Determine what to do if the parent discriminator name == the grandparent discriminator name
-                while (parent != null) {
+                if (parent != null) {
                     if (parent.children == null) {
                         parent.children = new ArrayList<CodegenModel>();
                     }
                     parent.children.add(cm);
-                    if (parent.discriminator == null) {
-                        parent = allModels.get(parent.parent);
-                    } else {
-                        parent = null;
+                    imports.put(parent.name, parent.children);
+                }
+            }
+
+            // add imports for all the added subtypes & set hasSubType on true for subtypes
+            for (Entry<String, List<CodegenModel>> innerImports : imports.entrySet()) {
+                for (String name : allModels.keySet()) {
+                    if (innerImports.getKey().equals(name)) {
+                        CodegenModel cm = allModels.get(name);
+                        cm.hasSubType = true;
+                    }
+                }
+                for (Entry<String, Object> objsEntry : objs.entrySet()) {
+                    Map<String, Object> objsInner = (Map<String, Object>) objsEntry.getValue();
+                    List<Map<String, String>> importsObjs = (List<Map<String, String>>) objsInner.get("imports");
+
+                    if (objsEntry.getKey().equals(innerImports.getKey())) {
+                        List<CodegenModel> inner = (List<CodegenModel>) innerImports.getValue();
+                        for (CodegenModel childrenList : inner) {
+                            Map<String, String> item = new HashMap<String, String>();
+                            item.put("import", "com.audionowdigital.playerlibrary.model." + childrenList.name);
+                            finalImports.add(item);
+                        }
+                        importsObjs.addAll(finalImports);
+                        finalImports.clear();
                     }
                 }
             }
@@ -273,6 +295,7 @@ public class DefaultCodegen {
      * @param vars List of variable names
      * @return the common prefix for naming
      */
+
     public String findCommonPrefixOfVars(List<Object> vars) {
         try {
             String[] listStr = vars.toArray(new String[vars.size()]);
@@ -1276,13 +1299,6 @@ public class DefaultCodegen {
         m.externalDocs = model.getExternalDocs();
         m.vendorExtensions = model.getVendorExtensions();
 
-//        find the properties Object/List of Objects type and add them to the specific object->to assign them JsonBackReference
-        if (alreadyExecuted) {
-            if (allDefinitions != null)
-                setBackRefProperties(allDefinitions);
-            alreadyExecuted = false;
-        }
-
         if (m.name.equals("NewsArticle")) {
             m.isNewsArticle = true;
         }
@@ -1290,7 +1306,8 @@ public class DefaultCodegen {
         if (model instanceof ModelImpl) {
             m.discriminator = ((ModelImpl) model).getDiscriminator();
         }
-
+        if (m.discriminator != null)
+            m.hasDiscriminator = true;
         if (model instanceof ArrayModel) {
             ArrayModel am = (ArrayModel) model;
             ArrayProperty arrayProperty = new ArrayProperty(am.getItems());
@@ -1409,6 +1426,7 @@ public class DefaultCodegen {
                 postProcessModelProperty(m, prop);
             }
         }
+
         return m;
     }
 
@@ -1520,7 +1538,6 @@ public class DefaultCodegen {
             property.isParent = true;
             property.nameChild = Character.toLowerCase(dataTypeProperty.charAt(0)) + dataTypeProperty.substring(1) + p.getName();
         }
-
 
         if (!"null".equals(example)) {
             property.example = example;
@@ -2992,7 +3009,7 @@ public class DefaultCodegen {
             }
             if (properties.size() == 1 && !s) {
                 addVars(m, m.vars, properties, mandatory);
-            }else{
+            } else {
                 addVarsWithJson(m, m.vars, properties, mandatory, totalCountNew);
             }
             m.allMandatory = m.mandatory = mandatory;
@@ -3010,7 +3027,7 @@ public class DefaultCodegen {
         }
     }
 
-    private void addVarsWithJson(CodegenModel m, List<CodegenProperty> vars, Map<String, Property> properties, Set<String> mandatory, int totalCountNew){
+    private void addVarsWithJson(CodegenModel m, List<CodegenProperty> vars, Map<String, Property> properties, Set<String> mandatory, int totalCountNew) {
         int count = 0;
         // convert set to list so that we can access the next entry in the loop
         List<Map.Entry<String, Property>> propertyList = new ArrayList<Map.Entry<String, Property>>(properties.entrySet());
@@ -3677,53 +3694,6 @@ public class DefaultCodegen {
 
     public void writePropertyBack(String propertyKey, boolean value) {
         additionalProperties.put(propertyKey, value);
-    }
-
-    public void setBackRefProperties(Map<String, Model> allDefinitions) {
-        for (Map.Entry<String, Model> modelEntry : allDefinitions.entrySet()) {
-            final String modelKey = modelEntry.getKey();
-            final Map<String, Property> properties = modelEntry.getValue().getProperties();
-            if (properties != null) {
-                for (Map.Entry<String, Property> entry : properties.entrySet()) {
-                    final Property value = entry.getValue();
-                    String modelNameRef = null;
-//                    boolean isException = checkExceptionModel(entry.getKey());
-//                    if (!isException) {
-                    if (value.getType().equals("ref")) {
-                        modelNameRef = ((RefProperty) value).getSimpleRef();
-                        value.setName(modelKey);
-                    }
-                    if (value instanceof ArrayProperty) {
-                        if (((ArrayProperty) value).getItems().getType().equals("ref")) {
-                            modelNameRef = ((RefProperty) ((ArrayProperty) value).getItems()).getSimpleRef();
-                            value.setName(modelKey);
-                        }
-                    }
-
-                    if (modelNameRef != null) {
-                        for (Map.Entry<String, Model> modelEntry1 : allDefinitions.entrySet()) {
-                            final String key = modelEntry1.getKey();
-                            if (key.equals(modelNameRef)) {
-                                RefProperty r = new RefProperty();
-                                r.set$ref("#/definitions/" + modelEntry.getKey());
-                                r.setType("parent");
-//                                     JsonBackReference value: child +  parent name
-                                r.setName(key.substring(0, 1).toLowerCase() + key.substring(1) + modelKey);
-                                if (modelEntry1.getValue().getProperties() != null) {
-                                    modelEntry1.getValue().getProperties().put(modelEntry.getKey(), r);
-                                } else {
-                                    HashMap<String, Property> options = new HashMap<String, Property>();
-                                    options.put(modelEntry.getKey(), r);
-                                    modelEntry1.getValue().setProperties(options);
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-//            }
-        }
     }
 
     public boolean checkExceptionProperty(String property) {

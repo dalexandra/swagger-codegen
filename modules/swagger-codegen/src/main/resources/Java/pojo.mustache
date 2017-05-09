@@ -2,7 +2,7 @@
 * {{#description}}{{.}}{{/description}}{{^description}}{{classname}}{{/description}}
 */{{#description}}
     @ApiModel(description = "{{{description}}}"){{/description}}
-{{>generatedAnnotation}}{{#discriminator}}{{>typeInfoAnnotation}}{{/discriminator}}
+{{>generatedAnnotation}}{{>typeInfoAnnotation}}
 public class {{classname}} {{#parent}}extends {{{parent}}} {{/parent}}{{#parcelableModel}}implements Parcelable {{#serializableModel}}, Serializable {{/serializableModel}}{{/parcelableModel}}{{^parcelableModel}}{{#serializableModel}}implements Serializable {{/serializableModel}}{{/parcelableModel}}{{#isNewsArticle}}, Comparable<NewsArticle>{{/isNewsArticle}}{
 
 {{#vars}}
@@ -18,19 +18,24 @@ public class {{classname}} {{#parent}}extends {{{parent}}} {{/parent}}{{#parcela
             {{/isContainer}}
         {{/items}}
     {{/items.isEnum}}
+{{#backReference}}
     {{#isChild}}
    @JsonBackReference(value = "{{nameParentChild}}")
    private {{{datatypeparent}}} {{nameParentChild}};
     {{/isChild}}
+{{/backReference}}
     {{^isChild}}
+{{#backReference}}
     {{#isParent}}
    @JsonManagedReference(value = "{{nameChild}}")
     {{/isParent}}
+{{/backReference}}
    private {{{datatypeWithEnum}}} {{name}} = {{{defaultValue}}};
     {{/isChild}}
 {{/vars}}
 {{#vars}}
     {{#isChild}}
+{{#backReference}}
    public {{{datatypeWithEnum}}} {{getter}}() {
      return {{nameParentChild}};
    }
@@ -38,6 +43,7 @@ public class {{classname}} {{#parent}}extends {{{parent}}} {{/parent}}{{#parcela
    public void {{setter}}({{{datatypeWithEnum}}} {{nameParentChild}}) {
      this.{{nameParentChild}} = {{nameParentChild}};
    }
+{{/backReference}}
     {{/isChild}}
     {{^isChild}}
    /**
